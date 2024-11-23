@@ -35,7 +35,13 @@ void send_data(seq_nr frame_nr, seq_nr frame_expected, packet buffer[]) {
 
 // Simulate sending a frame to the physical layer
 void to_physical_layer(Frame& frame) {
-    cout << "Sending frame [Seq: " << frame.seq << ", Ack: " << frame.ack << "] to physical layer\n";
+    //cout << "Sending frame [Seq: " << frame.seq << ", Ack: " << frame.ack << "] to physical layer\n";
+    if (frame.is_nak) {
+        cout << "Sending NAK for frame [Expected: " << frame.ack << "] to physical layer\n";
+    }
+    else {
+        cout << "Sending frame [Seq: " << frame.seq << ", Ack: " << frame.ack << "] to physical layer\n";
+    }
 }
 
 // Simulate receiving a frame from the physical layer
@@ -57,6 +63,17 @@ void from_network_layer(char data[]) {
         data[i] = 'A' + (rand() % 26); // Random letters
     }
 }
+void to_network_layer(char data[]) {
+    // Simulating passing the data to the network layer
+    // In a real scenario, you could forward the data to an upper layer or process it further
+
+    cout << "Data passed to network layer: ";
+    //for (int i = 0; i < MAX_PKT; i++) {
+    //    cout << data[i];  // Print each byte (character)
+    //}
+    cout << endl;
+}
+
 bool timeout = true;
 // Simulate starting a timer for the frame
 void start_timer(int seq) {
@@ -79,14 +96,26 @@ void stop_timer(int seq) {
 
 // Calculate the optimal window size based on bandwidth and delay
 //Must be called before starting the protocol to set the protocol specifications such bandwidth,frame_size and window_size
-void calculate_window_size(int bandwidth, double propagation_delay, int frame_size) {
+int calculate_window_size(int bandwidth, double propagation_delay, int frame_size) {
     // Bandwidth-Delay Product (BDP) in bits
     double BDP_in_bits = bandwidth * propagation_delay;
 
     // Convert BDP to number of frames
     int BDP_in_frames = static_cast<int>(ceil(BDP_in_bits / frame_size));
 
-    window_size = 1 + 2 * BDP; //window_size is defined in go_back_n_simulation.h, setting MAX_SEQ with window_size
+    return window_size = 1 + 2 * BDP_in_frames; //window_size is defined in go_back_n_simulation.h, setting MAX_SEQ with window_size
+}
+
+bool network_layer_enabled = true; // Global flag to track the network layer state
+
+void enable_network_layer() {
+    network_layer_enabled = true;
+    cout << "Network layer enabled.\n";
+}
+
+void disable_network_layer() {
+    network_layer_enabled = false;
+    cout << "Network layer disabled.\n";
 }
 
 // Go-Back-N sender logic
@@ -128,6 +157,7 @@ void go_back_n_sender(int MAX_SEQ) {
                         to_physical_layer(buffer[i]);
                         start_timer(i);
                     }
+                    disable_network_layer();
                     break;
                 }
         }
@@ -162,6 +192,10 @@ void go_back_n_sender(int MAX_SEQ) {
                             nbuffered--; // Decrease the number of buffered frames
                             stop_timer(ack_expected); // Stop timer for this frame
                             increment(ack_expected, MAX_SEQ);
+
+                            if (nbuffered < MAX_SEQ) {
+                                enable_network_layer(); // Allow network layer to send more packets
+                            }
                         }
                         
                     }
@@ -170,6 +204,8 @@ void go_back_n_sender(int MAX_SEQ) {
                 /***************************************************************************/
                 //handle case when received_frame.seq != frame_expected
                 else if(received_frame.seq != frame_expected) {
+                    cout << "Frame " << received_frame.seq << " not expected. Ignoring...\n";
+                    send_data(received_frame.seq, frame_expected, buffer, true);  // Send NAK for the expected frame
 
                 }
             }
