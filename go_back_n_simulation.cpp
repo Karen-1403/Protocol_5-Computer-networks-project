@@ -5,37 +5,27 @@
 #include <vector>
 #include <cstring>
 
-
 using namespace std;
 
 int window_size;
+bool timeout = true;
+bool network_layer_enabled = true;
 
-// Increment the sequence number circularly based on the window size (w)
 void increment(int& k, int MAX_SEQ) {
     k = (k + 1) % MAX_SEQ;
-     /* alternatively we can use:
-     if (k < MAX_SEQ)
-        k++;
-    else
-        k = 0;
-     */
 }
 
-// Function to send data with piggybacked acknowledgment
-void send_data(seq_nr frame_nr, seq_nr frame_expected, packet buffer[]) {
+void send_data(seq_nr frame_nr, seq_nr frame_expected, packet buffer[], bool is_nak = false) {
     Frame s;
-    s.seq = frame_nr;                               // Insert sequence number into frame
-    s.ack = (frame_expected + MAX_SEQ) % (MAX_SEQ + 1); // Piggyback ack
-    memcpy(s.data, buffer[frame_nr], MAX_PKT);      // Insert packet into frame
-    to_physical_layer(s);                           // Send the frame
-    start_timer(frame_nr);                          // Start timer for frame
+    s.seq = frame_nr;
+    s.ack = (frame_expected + MAX_SEQ) % (MAX_SEQ + 1);
+    s.is_nak = is_nak;
+    memcpy(s.data, buffer[frame_nr].data, MAX_PKT);
+    to_physical_layer(s);
+    start_timer(frame_nr);
 }
 
-
-
-// Simulate sending a frame to the physical layer
 void to_physical_layer(Frame& frame) {
-    //cout << "Sending frame [Seq: " << frame.seq << ", Ack: " << frame.ack << "] to physical layer\n";
     if (frame.is_nak) {
         cout << "Sending NAK for frame [Expected: " << frame.ack << "] to physical layer\n";
     }
@@ -44,69 +34,40 @@ void to_physical_layer(Frame& frame) {
     }
 }
 
-// Simulate receiving a frame from the physical layer
 bool from_physical_layer(Frame& frame) {
-    // In a real implementation, you'd fetch the frame from the channel.
-    // For simulation purposes: We will simulate a valid frame arrival (for demonstration)
-    frame.seq = rand() % (MAX_SEQ + 1);     // Random sequence number
-    frame.ack = rand() % (MAX_SEQ + 1);     // Random acknowledgment number
-    memcpy(frame.data, "ReceivedData", 12); // Simulate data
-    return true;                            // Frame received
+    frame.seq = rand() % (MAX_SEQ + 1);
+    frame.ack = rand() % (MAX_SEQ + 1);
+    memcpy(frame.data, "ReceivedData", 12);
+    return true;
 }
 
-// Simulate fetching a packet from the network layer to send as a frame
-void from_network_layer(char data[]) {
-    // Normally, this function fetches a packet from the network layer.
-    // For simulation purposes, we're just generating random data.
-   // Generate random dummy data
+void from_network_layer(packet& p) {
     for (int i = 0; i < MAX_PKT; i++) {
-        data[i] = 'A' + (rand() % 26); // Random letters
+        p.data[i] = 'A' + (rand() % 26);
     }
 }
-void to_network_layer(char data[]) {
-    // Simulating passing the data to the network layer
-    // In a real scenario, you could forward the data to an upper layer or process it further
 
-    cout << "Data passed to network layer: ";
-    //for (int i = 0; i < MAX_PKT; i++) {
-    //    cout << data[i];  // Print each byte (character)
-    //}
-    cout << endl;
+void to_network_layer(char data[]) {
+    cout << "Data passed to network layer: " << data << endl;
 }
 
-bool timeout = true;
-// Simulate starting a timer for the frame
 void start_timer(int seq) {
     cout << "Starting timer for frame " << seq << endl;
     this_thread::sleep_for(chrono::seconds(1));
-    if(timeout)
+    if (timeout)
         cout << "Timeout for frame: " << seq << endl;
 }
 
-// Simulate stopping a timer for the frame
 void stop_timer(int seq) {
     cout << "Stopping timer for frame " << seq << endl;
     timeout = false;
-    /*
-    When a frame is lost during transmission, if its ack is not received within a certain time, re-transmission starting
-    from this packet and all subsequent ones is triggered even if they have been delivered but once the ack is received 
-    the sender stops the timer and no timeout occurs.
-    */
 }
 
-// Calculate the optimal window size based on bandwidth and delay
-//Must be called before starting the protocol to set the protocol specifications such bandwidth,frame_size and window_size
 int calculate_window_size(int bandwidth, double propagation_delay, int frame_size) {
-    // Bandwidth-Delay Product (BDP) in bits
     double BDP_in_bits = bandwidth * propagation_delay;
-
-    // Convert BDP to number of frames
     int BDP_in_frames = static_cast<int>(ceil(BDP_in_bits / frame_size));
-
-    return window_size = 1 + 2 * BDP_in_frames; //window_size is defined in go_back_n_simulation.h, setting MAX_SEQ with window_size
+    return window_size = 1 + 2 * BDP_in_frames;
 }
-
-bool network_layer_enabled = true; // Global flag to track the network layer state
 
 void enable_network_layer() {
     network_layer_enabled = true;
@@ -118,122 +79,203 @@ void disable_network_layer() {
     cout << "Network layer disabled.\n";
 }
 
-// Go-Back-N sender logic
+void wait_for_event(event_type* event) {
+    int random_event = rand() % 4;
+    *event = static_cast<event_type>(random_event);
+}
+
 void go_back_n_sender(int MAX_SEQ) {
-    seq_nr next_frame_to_send = 0;     // Next frame to send
-    seq_nr ack_expected = 0;            // Oldest unacknowledged frame
-    seq_nr frame_expected = 0;          // Next frame expected on inbound stream
-    packet buffer[MAX_SEQ + 1];         // Buffer to hold frames till receiving their ack
-    seq_nr nbuffered = 0;               // Number of current buffer frames
-    seq_nr i;                           // Index used to iterate through buffer
-    event_type event;                   // Event type placeholder
+    seq_nr next_frame_to_send = 0;
+    seq_nr ack_expected = 0;
+    seq_nr frame_expected = 0;
+    packet buffer[MAX_SEQ + 1];
+    seq_nr nbuffered = 0;
+    seq_nr i;
+    event_type event;
 
+    enable_network_layer();
 
-    enable_network_layer();             // Allow network layer to be ready
-
-    // Simulate the sender operation
     while (true) {
-
-        wait_for_event(&event);         // Wait for an event
+        wait_for_event(&event);
 
         switch (event) {
-
-        case network_layer_ready: {
+        case network_layer_ready:
             if (nbuffered < MAX_SEQ) {
-                // Fetch a new packet from the network layer
-                from_network_layer(buffer);
-                send_data(next_frame_to_send, frame_expected, buffer);  // Send data frame
-
-                // Increment the number of buffered frames and move to the next frame to send
+                from_network_layer(buffer[next_frame_to_send]);
+                send_data(next_frame_to_send, frame_expected, buffer);
                 nbuffered++;
                 increment(next_frame_to_send, MAX_SEQ);
-                break;
-
-            }
-            // Simulate a timeout event (retransmit all frames)
-            else if (nbuffered == MAX_SEQ) {
-                    cout << "Window full, retransmitting frames starting from " << ack_expected << endl;
-                    for (int i = ack_expected; i != next_frame_to_send; increment(i, MAX_SEQ)) {
-                        to_physical_layer(buffer[i]);
-                        start_timer(i);
-                    }
-                    disable_network_layer();
-                    break;
-                }
-        }
-
-        case frame_arrival: {
-            // Simulate receiving a frame (acknowledgment or data)
-            Frame received_frame;
-            if (from_physical_layer(received_frame)) {
-                // Check if the received frame is the one expected
-                if (received_frame.seq == frame_expected) {
-                    cout << "Frame " << received_frame.seq << " received correctly" << endl;
-
-                    //pass the frame to network layer
-                    to_network_layer(r.data); // Pass packet to network layer 
-                  
-                    // Deliver the packet to the network layer (acknowledge)
-                    frame_expected = (frame_expected + 1) % MAX_SEQ;
-
-                    // Stop the timer for this frame
-                    stop_timer(ack_expected);
-
-
-
-                    // Slide the window (acknowledge previous frames)
-                    /*
-                    This loop acknowledges all frames up to the expected one. Since Go-Back-N uses cumulative acknowledgments,
-                    once a frame is received correctly, all previous unacknowledged frames are implicitly acknowledged.
-                    */
-                    while (ack_expected != frame_expected) {
-                        // Handle acknowledgment piggybacked on frames
-                        while (between(ack_expected, r.ack, next_frame_to_send)) {
-                            nbuffered--; // Decrease the number of buffered frames
-                            stop_timer(ack_expected); // Stop timer for this frame
-                            increment(ack_expected, MAX_SEQ);
-
-                            if (nbuffered < MAX_SEQ) {
-                                enable_network_layer(); // Allow network layer to send more packets
-                            }
-                        }
-                        
-                    }
-                    break;
-                }
-                /***************************************************************************/
-                //handle case when received_frame.seq != frame_expected
-                else if(received_frame.seq != frame_expected) {
-                    cout << "Frame " << received_frame.seq << " not expected. Ignoring...\n";
-                    send_data(received_frame.seq, frame_expected, buffer, true);  // Send NAK for the expected frame
-
-                }
-            }
-           
-        }
-        case timeout: {
-            // Retransmit all unacknowledged frames
-            seq_nr resend_frame = ack_expected;
-            for (i = 1; i <= nbuffered; i++) {
-                send_data(resend_frame, frame_expected, buffer); // Resend frame
-                increment(resend_frame, MAX_SEQ); // Prepare next frame for retransmission
             }
             break;
-        }
+
+        case frame_arrival:
+            Frame received_frame;
+            if (from_physical_layer(received_frame)) {
+                if (received_frame.seq == frame_expected) {
+                    cout << "Frame " << received_frame.seq << " received correctly" << endl;
+                    to_network_layer(received_frame.data);
+                    frame_expected = (frame_expected + 1) % MAX_SEQ;
+                    stop_timer(ack_expected);
+
+                    while (between(ack_expected, received_frame.ack, next_frame_to_send)) {
+                        nbuffered--;
+                        stop_timer(ack_expected);
+                        increment(ack_expected, MAX_SEQ);
+                        if (nbuffered < MAX_SEQ) enable_network_layer();
+                    }
+                }
+                else {
+                    cout << "Frame " << received_frame.seq << " not expected. Sending NAK...\n";
+                    send_data(received_frame.seq, frame_expected, buffer, true);
+                }
+            }
+            break;
+
+        case timeout:
+            for (i = ack_expected; i != next_frame_to_send; increment(i, MAX_SEQ)) {
+                send_data(i, frame_expected, buffer);
+            }
+            break;
 
         case cksum_err:
-            break;  // Ignore bad frames
+            break;
 
         default:
             break;
         }
 
-
-        // Enable or disable network layer depending on window size
         if (nbuffered < MAX_SEQ) enable_network_layer();
         else disable_network_layer();
     }
 }
 
+void run_test_case_1() {
+    cout << "\nTest Case 1: Normal Operation with Sequence of Frames" << endl;
+    cout << "----------------------------------------------------" << endl;
+    go_back_n_sender(MAX_SEQ);
+}
 
+void run_test_case_2() {
+    cout << "\nTest Case 2: Simulate Timeout" << endl;
+    cout << "--------------------------------" << endl;
+    timeout = true;
+    start_timer(0); // Manually trigger a timeout
+}
 
+void run_test_case_3() {
+    cout << "\nTest Case 3: Handle Frame Loss" << endl;
+    cout << "----------------------------------" << endl;
+    bool from_physical_layer(Frame & frame) {
+        static int call_count = 0;
+        call_count++;
+        if (call_count == 3) {
+            return false; // Simulate frame loss on the third call
+        }
+        frame.seq = rand() % (MAX_SEQ + 1);
+        frame.ack = rand() % (MAX_SEQ + 1);
+        memcpy(frame.data, "ReceivedData", 12);
+        return true;
+    }
+    go_back_n_sender(MAX_SEQ);
+}
+
+void run_test_case_4() {
+    cout << "\nTest Case 4: Check NAK Handling" << endl;
+    cout << "------------------------------------" << endl;
+    bool from_physical_layer(Frame & frame) {
+        static int call_count = 0;
+        call_count++;
+        if (call_count % 3 == 0) {
+            frame.seq = (frame_expected + 1) % (MAX_SEQ + 1); // Simulate wrong seq number
+        }
+        else {
+            frame.seq = frame_expected;
+        }
+        frame.ack = rand() % (MAX_SEQ + 1);
+        memcpy(frame.data, "ReceivedData", 12);
+        return true;
+    }
+    go_back_n_sender(MAX_SEQ);
+}
+
+void run_test_case_5() {
+    cout << "\nTest Case 5: Handle Multiple Retransmissions" << endl;
+    cout << "---------------------------------------------" << endl;
+    bool from_physical_layer(Frame & frame) {
+        static int call_count = 0;
+        call_count++;
+        if (call_count % 2 == 0) {
+            return false; // Simulate loss of every second frame
+        }
+        frame.seq = rand() % (MAX_SEQ + 1);
+        frame.ack = rand() % (MAX_SEQ + 1);
+        memcpy(frame.data, "ReceivedData", 12);
+        return true;
+    }
+    go_back_n_sender(MAX_SEQ);
+}
+
+void run_test_case_6() {
+    cout << "\nTest Case 6: Continuous Normal Operation" << endl;
+    cout << "-----------------------------------------" << endl;
+    go_back_n_sender(MAX_SEQ);
+}
+
+void run_test_case_7() {
+    cout << "\nTest Case 7: Simulate Corrupted Frame" << endl;
+    cout << "--------------------------------------" << endl;
+    bool from_physical_layer(Frame & frame) {
+        frame.seq = rand() % (MAX_SEQ + 1);
+        frame.ack = rand() % (MAX_SEQ + 1);
+        memcpy(frame.data, "ReceivedData", 12);
+        return rand() % 5 != 0; // Simulate corruption with 20% chance
+    }
+    go_back_n_sender(MAX_SEQ);
+}
+
+void run_test_case_8() {
+    cout << "\nTest Case 8: Immediate Acknowledgment" << endl;
+    cout << "---------------------------------------" << endl;
+    bool from_physical_layer(Frame & frame) {
+        frame.seq = frame_expected;
+        frame.ack = (frame_expected + 1) % (MAX_SEQ + 1);
+        memcpy(frame.data, "ReceivedData", 12);
+        return true;
+    }
+    go_back_n_sender(MAX_SEQ);
+}
+
+void run_test_case_9() {
+    cout << "\nTest Case 9: Large Window Size" << endl;
+    cout << "--------------------------------" << endl;
+    int calculate_window_size(int bandwidth, double propagation_delay, int frame_size) {
+        return window_size = 10; // Set a large window size for testing
+    }
+    go_back_n_sender(MAX_SEQ);
+}
+
+void run_test_case_10() {
+    cout << "\nTest Case 10: Small Window Size" << endl;
+    cout << "---------------------------------" << endl;
+    int calculate_window_size(int bandwidth, double propagation_delay, int frame_size) {
+        return window_size = 2; // Set a small window size for testing
+    }
+    go_back_n_sender(MAX_SEQ);
+}
+
+void run_test_cases() {
+    run_test_case_1();
+    run_test_case_2();
+    run_test_case_3();
+    run_test_case_4();
+    run_test_case_5();
+    run_test_case_6();
+    run_test_case_7();
+    run_test_case_8();
+    run_test_case_9();
+    run_test_case_10();
+}
+int main() {
+    run_test_cases();
+    return 0;
+}
