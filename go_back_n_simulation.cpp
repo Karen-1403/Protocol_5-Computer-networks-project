@@ -34,8 +34,22 @@ void to_physical_layer(Frame& frame) {
     }
 }
 
-bool from_physical_layer(Frame& frame) {
-    frame.seq = rand() % (MAX_SEQ + 1);
+bool from_physical_layer(Frame& frame, bool simulate_loss = false, bool simulate_error = false) {
+    static int call_count = 0;
+    call_count++;
+
+    // Simulate frame loss (every second frame)
+    if (simulate_loss && call_count % 2 == 0) {
+        return false; // Simulate frame loss
+    }
+
+    // Simulate checksum error (e.g., wrong sequence number)
+    if (simulate_error && call_count % 3 == 0) {
+        frame.seq = (frame_expected + 1) % (MAX_SEQ + 1); // Wrong seq number
+    } else {
+        frame.seq = rand() % (MAX_SEQ + 1);
+    }
+
     frame.ack = rand() % (MAX_SEQ + 1);
     memcpy(frame.data, "ReceivedData", 12);
     return true;
@@ -53,9 +67,7 @@ void to_network_layer(char data[]) {
 
 void start_timer(int seq) {
     cout << "Starting timer for frame " << seq << endl;
-    this_thread::sleep_for(chrono::seconds(1));
-    if (timeout)
-        cout << "Timeout for frame: " << seq << endl;
+    timeout = true;
 }
 
 void stop_timer(int seq) {
@@ -82,6 +94,10 @@ void disable_network_layer() {
 void wait_for_event(event_type* event) {
     int random_event = rand() % 4;
     *event = static_cast<event_type>(random_event);
+}
+
+bool between(seq_nr a, seq_nr b, seq_nr c) {
+    return ((a <= b && b < c) || (a <= b || b < c));
 }
 
 void go_back_n_sender(int MAX_SEQ) {
@@ -149,13 +165,21 @@ void go_back_n_sender(int MAX_SEQ) {
     }
 }
 
+void reset_test_case() {
+    timeout = true;
+    network_layer_enabled = true;
+    // Reset other state as needed
+}
+
 void run_test_case_1() {
+    reset_test_case();
     cout << "\nTest Case 1: Normal Operation with Sequence of Frames" << endl;
     cout << "----------------------------------------------------" << endl;
     go_back_n_sender(MAX_SEQ);
 }
 
 void run_test_case_2() {
+    reset_test_case();
     cout << "\nTest Case 2: Simulate Timeout" << endl;
     cout << "--------------------------------" << endl;
     timeout = true;
@@ -163,89 +187,49 @@ void run_test_case_2() {
 }
 
 void run_test_case_3() {
+    reset_test_case();
     cout << "\nTest Case 3: Handle Frame Loss" << endl;
     cout << "----------------------------------" << endl;
-    bool from_physical_layer(Frame & frame) {
-        static int call_count = 0;
-        call_count++;
-        if (call_count == 3) {
-            return false; // Simulate frame loss on the third call
-        }
-        frame.seq = rand() % (MAX_SEQ + 1);
-        frame.ack = rand() % (MAX_SEQ + 1);
-        memcpy(frame.data, "ReceivedData", 12);
-        return true;
-    }
     go_back_n_sender(MAX_SEQ);
 }
 
 void run_test_case_4() {
+    reset_test_case();
     cout << "\nTest Case 4: Check NAK Handling" << endl;
     cout << "------------------------------------" << endl;
-    bool from_physical_layer(Frame & frame) {
-        static int call_count = 0;
-        call_count++;
-        if (call_count % 3 == 0) {
-            frame.seq = (frame_expected + 1) % (MAX_SEQ + 1); // Simulate wrong seq number
-        }
-        else {
-            frame.seq = frame_expected;
-        }
-        frame.ack = rand() % (MAX_SEQ + 1);
-        memcpy(frame.data, "ReceivedData", 12);
-        return true;
-    }
     go_back_n_sender(MAX_SEQ);
 }
 
 void run_test_case_5() {
+    reset_test_case();
     cout << "\nTest Case 5: Handle Multiple Retransmissions" << endl;
     cout << "---------------------------------------------" << endl;
-    bool from_physical_layer(Frame & frame) {
-        static int call_count = 0;
-        call_count++;
-        if (call_count % 2 == 0) {
-            return false; // Simulate loss of every second frame
-        }
-        frame.seq = rand() % (MAX_SEQ + 1);
-        frame.ack = rand() % (MAX_SEQ + 1);
-        memcpy(frame.data, "ReceivedData", 12);
-        return true;
-    }
     go_back_n_sender(MAX_SEQ);
 }
 
 void run_test_case_6() {
+    reset_test_case();
     cout << "\nTest Case 6: Continuous Normal Operation" << endl;
     cout << "-----------------------------------------" << endl;
     go_back_n_sender(MAX_SEQ);
 }
 
 void run_test_case_7() {
+    reset_test_case();
     cout << "\nTest Case 7: Simulate Corrupted Frame" << endl;
     cout << "--------------------------------------" << endl;
-    bool from_physical_layer(Frame & frame) {
-        frame.seq = rand() % (MAX_SEQ + 1);
-        frame.ack = rand() % (MAX_SEQ + 1);
-        memcpy(frame.data, "ReceivedData", 12);
-        return rand() % 5 != 0; // Simulate corruption with 20% chance
-    }
     go_back_n_sender(MAX_SEQ);
 }
 
 void run_test_case_8() {
+    reset_test_case();
     cout << "\nTest Case 8: Immediate Acknowledgment" << endl;
     cout << "---------------------------------------" << endl;
-    bool from_physical_layer(Frame & frame) {
-        frame.seq = frame_expected;
-        frame.ack = (frame_expected + 1) % (MAX_SEQ + 1);
-        memcpy(frame.data, "ReceivedData", 12);
-        return true;
-    }
     go_back_n_sender(MAX_SEQ);
 }
 
 void run_test_case_9() {
+    reset_test_case();
     cout << "\nTest Case 9: Large Window Size" << endl;
     cout << "--------------------------------" << endl;
     int calculate_window_size(int bandwidth, double propagation_delay, int frame_size) {
@@ -255,6 +239,7 @@ void run_test_case_9() {
 }
 
 void run_test_case_10() {
+    reset_test_case();
     cout << "\nTest Case 10: Small Window Size" << endl;
     cout << "---------------------------------" << endl;
     int calculate_window_size(int bandwidth, double propagation_delay, int frame_size) {
@@ -275,6 +260,7 @@ void run_test_cases() {
     run_test_case_9();
     run_test_case_10();
 }
+
 int main() {
     run_test_cases();
     return 0;
