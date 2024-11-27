@@ -100,6 +100,41 @@ int main() {
         case 4:
             runTestCase(6, 10, 70);  // Larger Window Size (6)
             break;
+        case 5:
+            runTestCase(2, 5, 90);   // Small Frame Count, High Efficiency (90%)
+            break;
+        case 6:
+            runTestCase(4, 50, 60);  // High Traffic, Medium Efficiency (60%)
+            break;
+        case 7:
+            runTestCase(2, 30, 40);  // Medium Traffic, Low Efficiency (40%)
+            break;
+        case 8:
+            runTestCase(3, 7, 80);   // Small Window, Higher Efficiency (80%)
+            break;
+        default:
+            cout << "Invalid test case selected." << endl;
+            break;
+        }
+    }
+    else if (choice == 2) {
+        int windowSize, totalFrames, efficiency;
+        cout << "Enter window size: ";
+        cin >> windowSize;
+        cout << "Enter total number of frames: ";
+        cin >> totalFrames;
+        cout << "Enter link efficiency (0 to 100): ";
+        cin >> efficiency;
+
+        runTestCase(windowSize, totalFrames, efficiency);
+    }
+    else {
+        cout << "Invalid choice." << endl;
+    }
+
+    return 0;
+}
+
 
 
 
