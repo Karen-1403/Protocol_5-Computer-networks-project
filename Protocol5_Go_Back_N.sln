@@ -1,31 +1,51 @@
-﻿
-Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.8.34330.188
-MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Protocol5_Go_Back_N", "Protocol5_Go_Back_N\Protocol5_Go_Back_N.vcxproj", "{97BB170C-DC00-4904-95EA-26FF72DEC021}"
-EndProject
-Global
-	GlobalSection(SolutionConfigurationPlatforms) = preSolution
-		Debug|x64 = Debug|x64
-		Debug|x86 = Debug|x86
-		Release|x64 = Release|x64
-		Release|x86 = Release|x86
-	EndGlobalSection
-	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{97BB170C-DC00-4904-95EA-26FF72DEC021}.Debug|x64.ActiveCfg = Debug|x64
-		{97BB170C-DC00-4904-95EA-26FF72DEC021}.Debug|x64.Build.0 = Debug|x64
-		{97BB170C-DC00-4904-95EA-26FF72DEC021}.Debug|x86.ActiveCfg = Debug|Win32
-		{97BB170C-DC00-4904-95EA-26FF72DEC021}.Debug|x86.Build.0 = Debug|Win32
-		{97BB170C-DC00-4904-95EA-26FF72DEC021}.Release|x64.ActiveCfg = Release|x64
-		{97BB170C-DC00-4904-95EA-26FF72DEC021}.Release|x64.Build.0 = Release|x64
-		{97BB170C-DC00-4904-95EA-26FF72DEC021}.Release|x86.ActiveCfg = Release|Win32
-		{97BB170C-DC00-4904-95EA-26FF72DEC021}.Release|x86.Build.0 = Release|Win32
-	EndGlobalSection
-	GlobalSection(SolutionProperties) = preSolution
-		HideSolutionNode = FALSE
-	EndGlobalSection
-	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {F4417A94-9472-4FE5-9779-62CB3667766E}
-	EndGlobalSection
-EndGlobal
+
+#include <iostream>
+#include <vector>
+#include <cstdlib>
+#include <ctime>
+
+using namespace std;
+
+class Frame {
+public:
+    int id;
+    bool ack;
+    bool retransmitted;
+
+    Frame(int id) : id(id), ack(false), retransmitted(false) {}
+};
+
+void sendFrames(vector<Frame>& frames, int& base, int& nextSeqNum, int windowSize) {
+    for (int i = 0; i < windowSize && nextSeqNum < frames.size(); ++i) {
+        if (nextSeqNum < base + windowSize) {
+            cout << "Sending frame " << frames[nextSeqNum].id << endl;
+            frames[nextSeqNum].ack = false;
+            frames[nextSeqNum].retransmitted = false;
+            nextSeqNum++;
+        }
+    }
+}
+
+void receiveAcks(vector<Frame>& frames, int& base, int windowSize, int efficiency) {
+    srand(time(NULL)); // Seed the random number generator with the current time
+    for (int i = base; i < base + windowSize && i < frames.size(); ++i) {
+        int randNum = rand() % 100;  // Generate a random number between 0 and 99
+        if (randNum < efficiency) { // Simulate ACK reception based on efficiency percentage
+            cout << "ACK received for frame " << frames[i].id << endl;
+            frames[i].ack = true;
+        }
+        else {
+            cout << "ACK not received for frame " << frames[i].id << endl;
+        }
+    }
+
+    while (base < frames.size() && frames[base].ack) {
+        base++;
+    }
+}
+
+
+
+
+
+
