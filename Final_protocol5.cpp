@@ -74,7 +74,32 @@ void runTestCase(int windowSize, int totalFrames, int efficiency) {
     cout << "All frames sent and acknowledged." << endl;
 }
 
+int main() {
+    int choice;
+    cout << "Select an option:\n";
+    cout << "1. Run predefined test case\n";
+    cout << "2. Enter custom parameters\n";
+    cout << "Enter your choice: ";
+    cin >> choice;
 
+    if (choice == 1) {
+        int testCase;
+        cout << "Select a test case (1-8): ";
+        cin >> testCase;
+
+        switch (testCase) {
+        case 1:
+            runTestCase(4, 10, 100); // High Link Efficiency (100%)
+            break;
+        case 2:
+            runTestCase(4, 10, 0);   // No ACKs, low efficiency (0%)
+            break;
+        case 3:
+            runTestCase(4, 10, 50);  // Medium Link Efficiency (50%)
+            break;
+        case 4:
+            runTestCase(6, 10, 70);  // Larger Window Size (6)
+            break;
 
 
 
