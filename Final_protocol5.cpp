@@ -44,6 +44,35 @@ void receiveAcks(vector<Frame>& frames, int& base, int windowSize, int efficienc
     }
 }
 
+void simulateRetransmissions(vector<Frame>& frames, int& base, int windowSize) {
+    // Simulate retransmissions for unacknowledged frames
+    for (int i = base; i < base + windowSize && i < frames.size(); ++i) {
+        if (!frames[i].ack && !frames[i].retransmitted) {
+            // Simulate retransmission
+            cout << "Retransmitting frame " << frames[i].id << endl;
+            frames[i].retransmitted = true;
+            frames[i].ack = false; // Reset ack for retransmission
+        }
+    }
+}
+
+void runTestCase(int windowSize, int totalFrames, int efficiency) {
+    vector<Frame> frames;
+    for (int i = 1; i <= totalFrames; ++i) {
+        frames.push_back(Frame(i));  // Ensure frame IDs start from 1
+    }
+
+    int base = 0;
+    int nextSeqNum = 0;
+
+    while (base < totalFrames) {
+        sendFrames(frames, base, nextSeqNum, windowSize);
+        receiveAcks(frames, base, windowSize, efficiency);
+        simulateRetransmissions(frames, base, windowSize);
+    }
+
+    cout << "All frames sent and acknowledged." << endl;
+}
 
 
 
